@@ -197,6 +197,286 @@ function calculateSellAmount(uint256 tokenId, uint256 tokenAmount) external view
 - **实时分配**: 创建者奖励在每笔交易后立即发放
 - **费用提取**: 平台费用由合约所有者提取
 
+## 前端集成指南
+
+### 主网合约地址
+```
+PPPLaunchpad: 0xAB2fC0797F1741D98001e847B2206d25c7233659
+网络: XLayer 主网
+Chain ID: 196
+RPC URL: https://rpc.xlayer.tech
+```
+
+### 前端访问 TokenMarket 数据
+
+#### 1. 设置 Web3 连接
+
+```javascript
+// 使用 ethers.js
+import { ethers } from 'ethers';
+
+const provider = new ethers.JsonRpcProvider('https://rpc.xlayer.tech');
+const contractAddress = '0xAB2fC0797F1741D98001e847B2206d25c7233659';
+
+// 合约 ABI (主要函数)
+const abi = [
+  "function getMarket(uint256 tokenId) external view returns (tuple(address tokenAddress, address creator, string name, string symbol, string uri, uint256 createdAt, uint256 lastActivityTime, uint256 ethReserve, uint256 tokenReserve, uint256 maxSupply, uint256 tradingVolume, bool exists))",
+  "function getTotalTokens() external view returns (uint256)",
+  "function getCurrentPrice(uint256 tokenId) external view returns (uint256)",
+  "function calculateBuyAmount(uint256 tokenId, uint256 ethAmount) external view returns (uint256 tokenAmount, uint256 feeAmount)",
+  "function calculateSellAmount(uint256 tokenId, uint256 tokenAmount) external view returns (uint256 ethAmount, uint256 feeAmount)",
+  "function getCreatorTokens(address creator) external view returns (uint256[])",
+  "function tokenToId(address) external view returns (uint256)",
+  "function buyTokens(uint256 tokenId, uint256 minTokensOut) external payable",
+  "function sellTokens(uint256 tokenId, uint256 tokenAmount, uint256 minEthOut) external"
+];
+
+const contract = new ethers.Contract(contractAddress, abi, provider);
+```
+
+#### 2. 获取 TokenMarket 数据
+
+```javascript
+// 获取单个代币市场信息
+async function getTokenMarket(tokenId) {
+  try {
+    const market = await contract.getMarket(tokenId);
+    
+    return {
+      tokenAddress: market.tokenAddress,
+      creator: market.creator,
+      name: market.name,
+      symbol: market.symbol,
+      uri: market.uri,
+      createdAt: Number(market.createdAt),
+      lastActivityTime: Number(market.lastActivityTime),
+      ethReserve: ethers.formatEther(market.ethReserve),
+      tokenReserve: ethers.formatEther(market.tokenReserve),
+      maxSupply: ethers.formatEther(market.maxSupply),
+      tradingVolume: ethers.formatEther(market.tradingVolume),
+      exists: market.exists
+    };
+  } catch (error) {
+    console.error('获取市场信息失败:', error);
+    throw error;
+  }
+}
+
+// 获取所有代币列表
+async function getAllTokens() {
+  try {
+    const totalTokens = await contract.getTotalTokens();
+    const markets = [];
+    
+    for (let i = 1; i <= totalTokens; i++) {
+      try {
+        const market = await getTokenMarket(i);
+        markets.push({ tokenId: i, ...market });
+      } catch (error) {
+        console.error(`获取代币 ${i} 失败:`, error);
+      }
+    }
+    
+    return markets;
+  } catch (error) {
+    console.error('获取代币列表失败:', error);
+    throw error;
+  }
+}
+
+// 获取创建者的所有代币
+async function getCreatorTokens(creatorAddress) {
+  try {
+    const tokenIds = await contract.getCreatorTokens(creatorAddress);
+    const markets = [];
+    
+    for (const tokenId of tokenIds) {
+      try {
+        const market = await getTokenMarket(Number(tokenId));
+        markets.push({ tokenId: Number(tokenId), ...market });
+      } catch (error) {
+        console.error(`获取代币 ${tokenId} 失败:`, error);
+      }
+    }
+    
+    return markets;
+  } catch (error) {
+    console.error('获取创建者代币失败:', error);
+    throw error;
+  }
+}
+```
+
+#### 3. 获取价格和交易信息
+
+```javascript
+// 获取当前价格
+async function getCurrentPrice(tokenId) {
+  try {
+    const price = await contract.getCurrentPrice(tokenId);
+    return ethers.formatEther(price);
+  } catch (error) {
+    console.error('获取价格失败:', error);
+    throw error;
+  }
+}
+
+// 计算购买数量
+async function calculateBuyAmount(tokenId, ethAmount) {
+  try {
+    const ethAmountWei = ethers.parseEther(ethAmount.toString());
+    const [tokenAmount, feeAmount] = await contract.calculateBuyAmount(tokenId, ethAmountWei);
+    
+    return {
+      tokenAmount: ethers.formatEther(tokenAmount),
+      feeAmount: ethers.formatEther(feeAmount)
+    };
+  } catch (error) {
+    console.error('计算购买数量失败:', error);
+    throw error;
+  }
+}
+
+// 计算出售数量
+async function calculateSellAmount(tokenId, tokenAmount) {
+  try {
+    const tokenAmountWei = ethers.parseEther(tokenAmount.toString());
+    const [ethAmount, feeAmount] = await contract.calculateSellAmount(tokenId, tokenAmountWei);
+    
+    return {
+      ethAmount: ethers.formatEther(ethAmount),
+      feeAmount: ethers.formatEther(feeAmount)
+    };
+  } catch (error) {
+    console.error('计算出售数量失败:', error);
+    throw error;
+  }
+}
+```
+
+#### 4. 实现交易功能
+
+```javascript
+// 购买代币 (需要连接钱包)
+async function buyTokens(tokenId, ethAmount, slippagePercent = 3) {
+  try {
+    if (!window.ethereum) {
+      throw new Error('请安装 MetaMask');
+    }
+    
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const contractWithSigner = new ethers.Contract(contractAddress, abi, signer);
+    
+    // 计算最小接收代币数量（滑点保护）
+    const { tokenAmount } = await calculateBuyAmount(tokenId, ethAmount);
+    const minTokensOut = ethers.parseEther((tokenAmount * (100 - slippagePercent) / 100).toString());
+    
+    const tx = await contractWithSigner.buyTokens(tokenId, minTokensOut, {
+      value: ethers.parseEther(ethAmount.toString())
+    });
+    
+    console.log('交易发送:', tx.hash);
+    const receipt = await tx.wait();
+    console.log('交易确认:', receipt);
+    
+    return receipt;
+  } catch (error) {
+    console.error('购买失败:', error);
+    throw error;
+  }
+}
+
+// 出售代币 (需要连接钱包)
+async function sellTokens(tokenId, tokenAmount, slippagePercent = 3) {
+  try {
+    if (!window.ethereum) {
+      throw new Error('请安装 MetaMask');
+    }
+    
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const contractWithSigner = new ethers.Contract(contractAddress, abi, signer);
+    
+    // 计算最小接收 ETH 数量（滑点保护）
+    const { ethAmount } = await calculateSellAmount(tokenId, tokenAmount);
+    const minEthOut = ethers.parseEther((ethAmount * (100 - slippagePercent) / 100).toString());
+    
+    const tx = await contractWithSigner.sellTokens(
+      tokenId,
+      ethers.parseEther(tokenAmount.toString()),
+      minEthOut
+    );
+    
+    console.log('交易发送:', tx.hash);
+    const receipt = await tx.wait();
+    console.log('交易确认:', receipt);
+    
+    return receipt;
+  } catch (error) {
+    console.error('出售失败:', error);
+    throw error;
+  }
+}
+```
+
+#### 5. 使用示例
+
+```javascript
+// 示例：获取并显示代币市场信息
+async function displayTokenMarkets() {
+  try {
+    const markets = await getAllTokens();
+    
+    console.log('所有代币市场:');
+    markets.forEach(market => {
+      console.log(`
+代币ID: ${market.tokenId}
+名称: ${market.name} (${market.symbol})
+创建者: ${market.creator}
+ETH储备: ${market.ethReserve} ETH
+代币储备: ${market.tokenReserve} tokens
+交易量: ${market.tradingVolume} ETH
+创建时间: ${new Date(market.createdAt * 1000).toLocaleString()}
+      `);
+    });
+  } catch (error) {
+    console.error('显示失败:', error);
+  }
+}
+
+// 示例：监听交易事件
+function listenToTradeEvents() {
+  const eventFilter = contract.filters.TokenTraded();
+  
+  contract.on(eventFilter, (tokenId, trader, isBuy, ethAmount, tokenAmount, platformFee, creatorReward, creator, event) => {
+    console.log('新交易:', {
+      tokenId: Number(tokenId),
+      trader,
+      type: isBuy ? '购买' : '出售',
+      ethAmount: ethers.formatEther(ethAmount),
+      tokenAmount: ethers.formatEther(tokenAmount),
+      platformFee: ethers.formatEther(platformFee),
+      creatorReward: ethers.formatEther(creatorReward),
+      creator,
+      txHash: event.log.transactionHash
+    });
+  });
+}
+
+// 调用示例
+displayTokenMarkets();
+listenToTradeEvents();
+```
+
+### 注意事项
+
+1. **网络配置**: 确保前端连接到正确的 XLayer 网络
+2. **错误处理**: 实现适当的错误处理和用户反馈
+3. **Gas 费用**: 交易需要 XLayer 网络的原生代币作为 Gas 费
+4. **滑点保护**: 在波动市场中建议使用 3-5% 的滑点保护
+5. **实时更新**: 使用事件监听或定时刷新来更新市场数据
+
 ## 开发团队
 
 - 基于 Hardhat 开发框架
