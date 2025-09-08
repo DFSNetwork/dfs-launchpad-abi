@@ -179,6 +179,37 @@ function calculateBuyAmount(uint256 tokenId, uint256 ethAmount) external view re
 function calculateSellAmount(uint256 tokenId, uint256 tokenAmount) external view returns (uint256 ethAmount, uint256 feeAmount)
 ```
 
+### 事件
+
+#### TokenTraded 事件
+当某个代币发生买入或卖出交易时触发。
+
+```solidity
+event TokenTraded(
+    uint256 indexed tokenId,
+    address indexed trader,
+    bool indexed isBuy,
+    uint256 ethAmount,
+    uint256 tokenAmount,
+    uint256 platformFee,
+    uint256 creatorReward,
+    address creator
+);
+```
+
+**参数说明：**
+- `tokenId` (`uint256`, indexed): 交易的代币ID
+- `trader` (`address`, indexed): 参与交易的钱包地址
+- `isBuy` (`bool`, indexed): 是否为买入（true为买入，false为卖出）
+- `ethAmount` (`uint256`): 本次交易涉及的ETH数量
+- `tokenAmount` (`uint256`): 本次交易涉及的代币数量
+- `platformFee` (`uint256`): 平台收取的手续费
+- `creatorReward` (`uint256`): 创作者获得的奖励
+- `creator` (`address`): 该代币的创作者地址
+
+**用途：**
+用于追踪每一次代币的买卖行为，包括买卖双方、交易金额、手续费和创作者奖励等详细信息，便于前端、分析和审计。
+
 ## 安全考虑
 
 1. **重入攻击防护**: 使用 OpenZeppelin 的 ReentrancyGuard
