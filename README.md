@@ -11,7 +11,6 @@ PPP Launchpad 是一个完全去中心化的代币发射台，具有以下特性
 - **内置 AMM**: 每个代币都有自己的自动化做市商（AMM）
 - **防狙击**: 创建者可以在创建时立即购买代币，防止机器人狙击
 - **费用分配**: 交易费用 50% 给平台，50% 给代币创建者
-- **废弃项目回收**: 4年无活动的项目可以回收 ETH
 
 ## 核心功能
 
@@ -22,9 +21,9 @@ PPP Launchpad 是一个完全去中心化的代币发射台，具有以下特性
 
 ### 💱 AMM 交易
 - 基于恒定乘积公式的自动化做市商
-- 虚拟初始流动性：10 ETH
+- 虚拟初始流动性：21 OKB
 - 初始代币供应量：10亿代币
-- 最小交易量：0.0001 ETH
+- 最小交易量：0.0001 OKB
 
 ### 💰 费用结构
 - 交易费率：1% (100 基点)
@@ -135,14 +134,12 @@ uint256 public constant TRADING_FEE_RATE = 100;
 // 最小交易金额（0.0001 ETH）
 uint256 public constant MIN_TRADE_AMOUNT = 0.0001 ether;
 
-// 虚拟初始 ETH 流动性（10 ETH）
-uint256 public constant VIRTUAL_ETH_LIQUIDITY = 10 ether;
+// 虚拟初始 OKB 流动性（21 ETH）
+uint256 public constant VIRTUAL_ETH_LIQUIDITY = 21 ether;
 
 // 初始代币供应量（10亿代币）
 uint256 public constant INITIAL_TOKEN_SUPPLY = 1_000_000_000 * 10**18;
 
-// 废弃项目回收期（4年）
-uint256 public constant ABANDONMENT_PERIOD = 1460 days;
 ```
 
 ## API 文档
